@@ -340,6 +340,7 @@ app.post('/message/list', async (req, res)=>{
       }
         var message = result[i].r_message;
         var instant_sender = result[i].r_instant_sender;
+        var isRead = result[i].r_receiver_read;
         var time =  dateFormat(new Date(parseInt(result[i].r_date)), "yyyy년 mm월 dd일 h시 MM분");
 
         var info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
@@ -355,8 +356,10 @@ app.post('/message/list', async (req, res)=>{
         innerObject.receiver = receiver;
         innerObject.receiver_info = receiverInfo;
         innerObject.instant_sender = instant_sender;
+        innerObject.isRead = isRead;
         innerObject.message = message;
         innerObject.time = time;
+
 
         var search_index = s_index(sortedArray, token);
         if(search_index == -1){
@@ -372,7 +375,6 @@ app.post('/message/list', async (req, res)=>{
           sortedArray[search_index].items.push(innerObject);
           sortedArray[search_index].last_message_info = {"message": message, "time": time};
         }
-
     }
   }
   res.send(sortedArray);
@@ -380,32 +382,84 @@ app.post('/message/list', async (req, res)=>{
 // 아래는 특정한 리스트를 받아 채팅하는 공간
 app.post('/message/read', async (req, res)=>{
   var request_type = req.body.request_type;
-  var request_data = req.body.request_data;
-  var json = JSON.parse(request_data);
-  var device_id = json.deviceID;
-  var token = json.messageToken;
+  switch (request_type) {
+    case "read":
+    var request_data = req.body.request_data;
+    var json = JSON.parse(request_data);
+    var device_id = json.deviceID;
+    var token = json.messageToken;
 
-  var pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id ASC";
-  var sqlArray = [token];
-  var result = await asyncQuery(pstmt, sqlArray);
-  var object = new Object();
-  var resultArray = new Array();
-  for(var i = 0 ; i < result.length; i++){
-    var id = "";
-    var token = "";
-    if( i == 0 ){
-      var _pstmt = "SELECT *  FROM  firebasedevicetokenid f JOIN member_additional_info m  ON f.F_id = m.m_f_id WHERE f.F_id = ? OR f.F_id = ?";
-      var _sqlArray = [result[i].r_sender_id, result[i].r_receiver_id];
-      var _result = await asyncQuery(_pstmt, _sqlArray);
-      object.token_info = _result;
+    var pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id ASC";
+    var sqlArray = [token];
+    var result = await asyncQuery(pstmt, sqlArray);
+    var object = new Object();
+    for(var i = 0 ; i < result.length; i++){
+      var id = "";
+      var token = "";
+      if( i == 0 ){
+        var _pstmt = "SELECT *  FROM  firebasedevicetokenid f JOIN member_additional_info m  ON f.F_id = m.m_f_id WHERE f.F_id = ? OR f.F_id = ?";
+        var _sqlArray = [result[i].r_sender_id, result[i].r_receiver_id];
+        var _result = await asyncQuery(_pstmt, _sqlArray);
+        object.token_info = _result;
+      }
+      if( i == result.length-1){
+        var _u_pstmt = "UPDATE random_message SET r_receiver_read = 1 WHERE r_id  =? ";
+        var _u_sqlArray = [result[result.length-1].r_id];
+        connection.query(_u_pstmt, _u_sqlArray, async function(err, result){
+          if(err){
+            console.log("update err");
+          }else{
+            console.log("update success");
+          }
+        });
+      }
     }
+    object.items = result;
+    // console.log(object);
+
+    res.send(object);
+      break;
+    case "additional":
+    console.log( " -------------- additional ------------");
+      var request_data = req.body.request_data;
+      var json = JSON.parse(request_data);
+      var device_id = json.deviceID;
+      var token = json.messageToken;
+
+      var pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id DESC limit 1";
+      var sqlArray = [token];
+      var result = await asyncQuery(pstmt, sqlArray);
+      var object = new Object();
+      for(var i = 0 ; i < result.length; i++){
+        var id = "";
+        var token = "";
+        if( i == 0 ){
+          var _pstmt = "SELECT *  FROM  firebasedevicetokenid f JOIN member_additional_info m  ON f.F_id = m.m_f_id WHERE f.F_id = ? OR f.F_id = ?";
+          var _sqlArray = [result[i].r_sender_id, result[i].r_receiver_id];
+          var _result = await asyncQuery(_pstmt, _sqlArray);
+          object.token_info = _result;
+        }
+        if( i == result.length-1){
+          var _u_pstmt = "UPDATE random_message SET r_receiver_read = 1 WHERE r_id  =? ";
+          var _u_sqlArray = [result[result.length-1].r_id];
+          connection.query(_u_pstmt, _u_sqlArray, async function(err, result){
+            if(err){
+              console.log("update err");
+            }else{
+              console.log("update success");
+            }
+          });
+        }
+      }
+      object.items = result;
+      res.send(object);
+      break;
+    default:
+
   }
-  object.items = result;
-  // console.log(object);
-  var pstmt = "UPDATE random_message SET r_receiver_read = 1 WHERE "
-  connection.query()
-  res.send(object);
+
 });
+
 // 아래는 메시지를 지우는 방식
 app.post('/message/delete', async (req, res)=>{
   var request_type = req.body.request_type;

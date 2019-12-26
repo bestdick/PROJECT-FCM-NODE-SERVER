@@ -40,7 +40,7 @@ proto.getToken = function() {
 };
 proto.setType = function(type){
   this.type = type;
-}
+};
 proto.getType = function(){
   return this.type;
 };
@@ -57,7 +57,8 @@ proto.targetMessage = function() { //this may vary according to the message type
     },
     data:{
       type: this.type,
-      token: this.token
+      token: this.token,
+      message: this.body
     }
   }
 };
