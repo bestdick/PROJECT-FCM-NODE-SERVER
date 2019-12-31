@@ -43,11 +43,11 @@ var dateFormat = require('dateformat');
  //     }
  // });
 
+
+//basic server connection direction
 app.post('/', async (req, res)=>{
   res.send("success");
 });
-
-
 // 아래는 가입시 추가적인 정보 업로드하는 것
 app.post('/register/upload', async (req, res)=>{
   console.log("---- some one registered -----");
@@ -60,7 +60,7 @@ app.post('/register/upload', async (req, res)=>{
         var age = json.age;
         var location = json.location;
         var gender = json.gender;
-        var stmt = "INSERT INTO member_additional_info (m_f_id, m_location, m_age, m_gender, m_register_date) VALUES (?, ?, ?, ?, ?)";
+        var stmt = "INSERT INTO member_additional_info (m_f_id, m_location, m_age, m_gender, m_point, m_register_date) VALUES (?, ?, ?, ?, 0, ?)";
           connection.query(stmt, [device_id, location,  parseInt(age), gender, Date.now()], function(err, result){
             if(err){
               console.log(err);
@@ -459,7 +459,6 @@ app.post('/message/read', async (req, res)=>{
   }
 
 });
-
 // 아래는 메시지를 지우는 방식
 app.post('/message/delete', async (req, res)=>{
   var request_type = req.body.request_type;
@@ -480,6 +479,30 @@ app.post('/message/delete', async (req, res)=>{
   });
 });
 //신고
+app.post('/lounge', async (req, res)=>{
+  var responseObject = new Object();
+  var request_type = req.body.request_type;
+  responseObject.response_type = request_type;
+  switch (request_type) {
+    case "all":
+      var request_data = req.body.request_data;
+      var json = JSON.parse(request_data);
+      var device_id = json.deviceID;
+      var device_token = json.deviceToken;
+
+
+      var pstmt = "SELECT count(*) as count FROM random_message r LEFT JOIN message_status s ON r.r_token = s.token WHERE s.token is null AND (r.r_sender_id =? OR r.r_receiver_id = ?) AND r.r_instant_sender <> ? AND r.r_receiver_read = -1"
+      var sqlArray = [device_id, device_id, device_id, device_id];
+      var result = await asyncQuery(pstmt, sqlArray);
+
+      responseObject.response_data = result[0].count;
+      console.log("count ::::  ", result[0].count);
+      res.send(responseObject);
+      break;
+    default:
+
+  }
+});
 app.post('/report', async (req, res)=>{
   var responseObject = new Object();// return 해야하는 object
   var request_type = req.body.request_type;
@@ -520,6 +543,34 @@ app.post('/report', async (req, res)=>{
   var json = JSON.parse(req.body.request_data);
   var device_id = json.deviceID;
   var messageToken = json.messageToken;
+});
+// setting get my info
+app.post('/setting', async (req, res)=>{
+  console.log("------------------- profile ------------------");
+  var responseObject = new Object();// return 해야하는 object
+  var request_type = req.body.request_type;
+  responseObject.response_type = request_type;
+  switch (request_type) {
+    case "profile":
+      var request_data = req.body.request_data;
+      var json = JSON.parse(request_data);
+      var device_id = json.deviceID;
+      var pstmt = "SELECT * FROM  firebasedevicetokenid f JOIN member_additional_info m  ON f.F_id = m.m_f_id WHERE f.F_id = ?";
+      var sqlArray = [device_id];
+      var result = await asyncQuery(pstmt, sqlArray);
+      if(result.length > 0){
+        console.log(" RESULT :: > 0 ");
+        responseObject.response_data = result;
+        res.send(responseObject);
+      }else{
+        console.log(" RESULT :: < 0 ");
+        responseObject.response_data = "err";
+        res.send(responseObject);
+      }
+      break;
+    default:
+
+  }
 });
 
 
