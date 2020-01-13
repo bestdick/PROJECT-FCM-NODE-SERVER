@@ -50,15 +50,17 @@ proto.targetMessage = function() { //this may vary according to the message type
   return  {
     to: this.to,
     // collapse_key: 'your_collapse_key',
-    notification: {
-        title: this.title,
-        body: this.body,
-        click_action : "OPEN_ACTIVITY"
-    },
+    // notification: {
+    //     title: this.title,
+    //     body: this.body,
+    //     click_action : "OPEN_ACTIVITY"
+    // },
     data:{
       type: this.type,
       token: this.token,
-      message: this.body
+      message: this.body,
+      title : this.title,
+      body: this.body
     }
   }
 };
