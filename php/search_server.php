@@ -15,10 +15,11 @@ if($request_type == "search_server"){
        // $serverIP = "http://172.30.1.43:3000";
 
 // real server
-// $serverIP = "http://192.168.219.123:3000";
+$serverIP = "http://122.46.245.107:50003";
 
 //test server
-$serverIP = "http://192.168.219.104:3000";
+// $serverIP = "http://122.46.245.107:50001";
+// $serverIP = "http://192.168.219.104:3000";
 
 
 

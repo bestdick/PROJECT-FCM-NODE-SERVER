@@ -31,17 +31,8 @@ var dateFormat = require('dateformat');
 var OnLineArray = new Array();
 setInterval(function(){
   console.log("online total : ", OnLineArray.length);
-}, 5000);
-
-
-
-
-
-
-
-
-
-
+  OnLineArray = [];
+}, 600000);
 
 
 
@@ -105,11 +96,11 @@ setInterval(async function(){
     }
   }
 
-  //삭제된후 3일이 지난 메시지 삭제
+  //삭제된 후 1일이 지난 메시지 삭제
   var timeNow = Date.now();
-  var timeLimit = 3*24*60*60*1000;
+  var timeLimit = 24*60*60*1000;
   // var timeLimit = 60*1000;
-  var _3days = timeNow - timeLimit;
+  var _24hour = timeNow - timeLimit;
   var _g_pstmt = "SELECT * FROM message_status ORDER BY id limit 100";
   var _g_result = await asyncQuery(_g_pstmt, []);
   for(var i = 0 ; i < _g_result.length; i++){
@@ -117,32 +108,151 @@ setInterval(async function(){
     var __g_pstmt = "SELECT r_date FROM random_message WHERE r_token = ? ORDER BY r_id LIMIT 1";
     var __g_sqlArray = [token];
     var __g_result = await asyncQuery(__g_pstmt, __g_sqlArray);
-    var latest_time = __g_result[0].r_date;
-    if(_3days > latest_time){
-      console.log("삭제.....");
-      var ___g_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
-      var ___g_sqlArray = [token];
-      connection.query(___g_pstmt, ___g_sqlArray, async function(err, result){
-        if(err){
-          console.log("삭제 실패 1");
-        }else{
-          console.log("삭제 성공 1");
-          var ____g_pstmt = "DELETE FROM message_status WHERE token = ? ";
-          var ____g_sqlArray = [token];
-          connection.query(____g_pstmt, ____g_sqlArray, async function(err, result){
-            if(err){
-              console.log("삭제 실패 2")
-            }else{
-              console.log("삭제 성공 2");
-            }
-          });
-        }
-      });
+    if(__g_result.length>0){
+      console.log("1보다 크다",__g_result);
+      var latest_time = __g_result[0].r_date;
+      if(_24hour > latest_time){
+        console.log("삭제.....");
+        var ___g_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
+        var ___g_sqlArray = [token];
+        connection.query(___g_pstmt, ___g_sqlArray, async function(err, result){
+          if(err){
+            console.log("삭제 실패 1");
+          }else{
+            console.log("삭제 성공 1");
+            var ____g_pstmt = "DELETE FROM message_status WHERE token = ? ";
+            var ____g_sqlArray = [token];
+            connection.query(____g_pstmt, ____g_sqlArray, async function(err, result){
+              if(err){
+                console.log("삭제 실패 2")
+              }else{
+                console.log("삭제 성공 2");
+              }
+            });
+          }
+        });
+      }
     }
   }
+
+//3일 동안 문자가 없는 메시지 대화 삭제
+var _timeLimit = 3*24*60*60*1000;
+var _3days = timeNow - _timeLimit;
+var del_pstmt = "SELECT DISTINCT(r_token) FROM random_message WHERE CAST(r_date AS SIGNED) < ? LIMIT 1000";
+var sqlArray = [_3days];
+var result = await asyncQuery(del_pstmt, sqlArray);
+if(result.length>0){
+for(var i = 0 ; i < result.length; i++){
+  var token = result[i].r_token;
+  var _del_pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id DESC LIMIT 1";
+  var _sqlArray = [token];
+  var _result = await asyncQuery(_del_pstmt, _sqlArray);
+  if(_result.length > 0 ){
+  var thisToken = _result[0].r_token;
+  var latest_date = _result[0].r_date;
+  if(latest_date < _3days){
+    console.log(thisToken+":: Delete this Token");
+    var _d_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
+    var _d_sqlArray = [thisToken];
+    connection.query(_d_pstmt, _d_sqlArray, async function(err, result){
+      if(err){
+        console.log("-- 3일 이상된 메시지 지우기 실패 --");
+      }else{
+        console.log("-- 3일 이상된 메시지 지우기 성공 --");
+      }
+    });
+  }
+  }
+}
+
+}
+
 }, 600000);
 
 
+
+app.get('/test', async (req,res)=>{
+  // var device_id = "eSOv9NANXq8";
+  //
+  // var pstmt = "SELECT f.F_Token, f.F_date, m.m_location, m.m_age, m.m_gender, m.m_gps_la, m.m_gps_lo, m.m_point FROM firebasedevicetokenid f , member_additional_info m "+
+  // "WHERE m.m_f_id = ? AND f.F_id = ? GROUP BY f.F_id";
+  // var sqlArray = [device_id, device_id];
+  // var result = await asyncQuery(pstmt, sqlArray);
+  //
+  // console.log("result 1 :: ", result);
+  // var thisLong = result[0].m_gps_lo;
+  // var thisLat = result[0].m_gps_la;
+  // console.log("lng / lat :: ", thisLong + "/ " +thisLat);
+  // // var _pstmt = "SELECT "+
+  // // "m_f_id, ("+
+  // //   "6371 * acos ("+ // 6371 kilo ///   3959 mile
+  // //     "cos ( radians(?) )"+
+  // //     "* cos( radians( m_gps_la ) )"+
+  // //     "* cos( radians( m_gps_lo ) - radians(?) )"+
+  // //     "+ sin ( radians(?) )"+
+  // //     "* sin( radians( m_gps_la ) )"+
+  // //     ")"+
+  // //   ") AS distance "+
+  // // "FROM member_additional_info "+
+  // // "HAVING distance < 300 "+
+  // // "WHERE m_f_id <> ? AND "
+  // // "ORDER BY distance "+
+  // // "LIMIT 0 , 20";
+  // var _pstmt = "SELECT DISTINCT "+
+  // "m.m_f_id, ("+
+  //   "6371 * acos ("+ // 6371 kilo ///   3959 mile
+  //     "cos ( radians(?) )"+
+  //     "* cos( radians( m.m_gps_la ) )"+
+  //     "* cos( radians( m.m_gps_lo ) - radians(?) )"+
+  //     "+ sin ( radians(?) )"+
+  //     "* sin( radians( m.m_gps_la ) )"+
+  //     ")"+
+  //   ") AS distance "+
+  // "FROM member_additional_info m, firebasedevicetokenid f "+
+  // "WHERE m.m_f_id = f.F_id AND m.m_f_id <> ? AND f.F_status = ? "+
+  // "HAVING distance < 300 "+
+  // "ORDER BY distance "+
+  // "LIMIT 0 , 20";
+  //
+  // var _sqlArray = [thisLat, thisLong, thisLat, device_id, 1];
+  // var _result = await asyncQuery(_pstmt, _sqlArray);
+  // console.log(_result);
+  // res.send(_result);
+
+  var timeNow = Date.now();
+  var _timeLimit = 3*24*60*60*1000;
+  var _3days = timeNow - _timeLimit;
+  var del_pstmt = "SELECT DISTINCT(r_token) FROM random_message WHERE CAST(r_date AS SIGNED) < ? LIMIT 1000";
+  var sqlArray = [_3days];
+  var result = await asyncQuery(del_pstmt, sqlArray);
+  if(result.length>0){
+  for(var i = 0 ; i < result.length; i++){
+    var token = result[i].r_token;
+    var _del_pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id DESC LIMIT 1";
+    var _sqlArray = [token];
+    var _result = await asyncQuery(_del_pstmt, _sqlArray);
+    if(_result.length > 0 ){
+    var thisToken = _result[0].r_token;
+    var latest_date = _result[0].r_date;
+    if(latest_date < _3days){
+      console.log(thisToken+":: Delete this Token");
+      var _d_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
+      var _d_sqlArray = [thisToken];
+      connection.query(_d_pstmt, _d_sqlArray, async function(err, result){
+        if(err){
+          console.log("-- 3일 이상된 메시지 지우기 실패 --");
+        }else{
+          console.log("-- 3일 이상된 메시지 지우기 성공 --");
+        }
+      });
+    }
+    }
+  }
+
+  }
+res.send(_result);
+
+});
 
 
 //basic server connection direction
@@ -218,55 +328,6 @@ app.post('/gps', async (req, res)=>{
 
   }
 });
-app.get('/test', async (req,res)=>{
-  var device_id = "eSOv9NANXq8";
-
-  var pstmt = "SELECT f.F_Token, f.F_date, m.m_location, m.m_age, m.m_gender, m.m_gps_la, m.m_gps_lo, m.m_point FROM firebasedevicetokenid f , member_additional_info m "+
-  "WHERE m.m_f_id = ? AND f.F_id = ? GROUP BY f.F_id";
-  var sqlArray = [device_id, device_id];
-  var result = await asyncQuery(pstmt, sqlArray);
-
-  console.log("result 1 :: ", result);
-  var thisLong = result[0].m_gps_lo;
-  var thisLat = result[0].m_gps_la;
-  console.log("lng / lat :: ", thisLong + "/ " +thisLat);
-  // var _pstmt = "SELECT "+
-  // "m_f_id, ("+
-  //   "6371 * acos ("+ // 6371 kilo ///   3959 mile
-  //     "cos ( radians(?) )"+
-  //     "* cos( radians( m_gps_la ) )"+
-  //     "* cos( radians( m_gps_lo ) - radians(?) )"+
-  //     "+ sin ( radians(?) )"+
-  //     "* sin( radians( m_gps_la ) )"+
-  //     ")"+
-  //   ") AS distance "+
-  // "FROM member_additional_info "+
-  // "HAVING distance < 300 "+
-  // "WHERE m_f_id <> ? AND "
-  // "ORDER BY distance "+
-  // "LIMIT 0 , 20";
-  var _pstmt = "SELECT DISTINCT "+
-  "m.m_f_id, ("+
-    "6371 * acos ("+ // 6371 kilo ///   3959 mile
-      "cos ( radians(?) )"+
-      "* cos( radians( m.m_gps_la ) )"+
-      "* cos( radians( m.m_gps_lo ) - radians(?) )"+
-      "+ sin ( radians(?) )"+
-      "* sin( radians( m.m_gps_la ) )"+
-      ")"+
-    ") AS distance "+
-  "FROM member_additional_info m, firebasedevicetokenid f "+
-  "WHERE m.m_f_id = f.F_id AND m.m_f_id <> ? AND f.F_status = ? "+
-  "HAVING distance < 300 "+
-  "ORDER BY distance "+
-  "LIMIT 0 , 20";
-
-  var _sqlArray = [thisLat, thisLong, thisLat, device_id, 1];
-  var _result = await asyncQuery(_pstmt, _sqlArray);
-  console.log(_result);
-  res.send(_result);
-
-});
 // 아래는 가입시 추가적인 정보 업로드하는 것
 app.post('/register/upload', async (req, res)=>{
 
@@ -280,7 +341,7 @@ app.post('/register/upload', async (req, res)=>{
         var age = json.age;
         var location = json.location;
         var gender = json.gender;
-        var stmt = "INSERT INTO member_additional_info (m_f_id, m_location, m_age, m_gender, m_point, m_register_date) VALUES (?, ?, ?, ?, 12, ?)";
+        var stmt = "INSERT INTO member_additional_info (m_f_id, m_location, m_age, m_gender, m_point, m_register_date) VALUES (?, ?, ?, ?, 100, ?)";
           connection.query(stmt, [device_id, location,  parseInt(age), gender, Date.now()], function(err, result){
             if(err){
               console.log(err);
@@ -506,18 +567,19 @@ app.post('/message/send', async (req, res)=>{
                     res.send(resultObject);
                   }else{
                     console.log("random message insert upload_success");
-
-                    var _pstmt = "UPDATE member_additional_info SET m_point = m_point+? WHERE m_f_id= ?";
-                    var _sqlArray = [_point, device_id];
-                    connection.query(_pstmt, _sqlArray, async function(err, result){
-                      if(err){
-                        resultObject.response_data = "fail";
-                        res.send(resultObject);
-                      }else{
-                        resultObject.response_data = "success_random";
-                        res.send(resultObject);
-                      }
-                    });
+                    resultObject.response_data = "success_random";
+                    res.send(resultObject);
+                    // var _pstmt = "UPDATE member_additional_info SET m_point = m_point+? WHERE m_f_id= ?";
+                    // var _sqlArray = [_point, device_id];
+                    // connection.query(_pstmt, _sqlArray, async function(err, result){
+                    //   if(err){
+                    //     resultObject.response_data = "fail";
+                    //     res.send(resultObject);
+                    //   }else{
+                    //     resultObject.response_data = "success_random";
+                    //     res.send(resultObject);
+                    //   }
+                    // });
                   }
                 });
             }
@@ -632,8 +694,9 @@ app.post('/message/send', async (req, res)=>{
         var device_id = json.deviceID;
         var device_token = json.deviceToken;
         var sender_id = json.senderID;
-        var sender_token = json.sender_token;
+        var sender_token = json.senderToken;
         var content = json.content;
+        var myContent = json.myContent;
         var time = json.time;
 
         var pstmt = "SELECT m_point FROM member_additional_info WHERE m_f_id = ? ";
@@ -662,13 +725,36 @@ app.post('/message/send', async (req, res)=>{
               connection.query(pstmt, sqlArray, async function(err, result){
                 if(err){
                   resultObject.response_data = err;
-                  console.log("---ERR ", err);
+                  console.log("---ERR 1 ", err);
                   res.send(resultObject);
                 }else{
-                  resultObject.response_data = "success";
-                  resultObject.response_token = messageToken;
-                  console.log("---INSERT  SUCCESS" );
-                  res.send(resultObject);
+                  var _pstmt = "INSERT INTO random_message (r_token, r_sender_id, r_receiver_id, r_message, r_instant_sender, r_receiver_read, r_date) "+
+                  "VALUES (?, ?, ? , ? , ? , ?, ?)";
+                  var _sqlArray = [messageToken, sender_id, device_id, myContent, device_id, -1, Date.now()];
+                  connection.query(_pstmt, _sqlArray, async function(err, result){
+                    if(err){
+                      resultObject.response_data = err;
+                      console.log("---ERR 2 ", err);
+                      res.send(resultObject);
+                    }else{
+
+                      message = new targetMessage(sender_token, "두근두근 랜덤채팅", myContent, "continuous", messageToken);
+                      fcm.send(message.targetMessage(), function(err, response){
+                          if (err) {
+                              console.log("Something has gone wrong! ::", err);
+                              console.log("---ERR 3 ", err);
+                              resultObject.response_data = "fcm_error";
+                              res.send(resultObject);
+                          } else {
+                              console.log("Successfully sent with response: ", response);
+                              resultObject.response_data = "success";
+                              res.send(resultObject);
+                          }
+                      });
+
+                    }
+                  });
+
                 }
               });
             }
@@ -686,7 +772,7 @@ app.post('/message/list', async (req, res)=>{
   var request_data =req.body.request_data;
   var json =  JSON.parse(request_data);
   var device_id = json.deviceID;
-  var stmt = "SELECT * FROM random_message WHERE r_sender_id = ? OR r_receiver_id = ?";
+  var stmt = "SELECT * FROM random_message WHERE r_sender_id = ? OR r_receiver_id = ? ORDER BY r_date ASC";
   var array = [device_id, device_id];
   var result = await asyncQuery(stmt, array);
 
@@ -736,8 +822,8 @@ app.post('/message/list', async (req, res)=>{
         innerObject.instant_sender = instant_sender;
         innerObject.isRead = isRead;
         innerObject.message = message;
-        innerObject.time = r_time;
-        innerObject.m_time = m_time;
+        innerObject.time = r_time;//real time
+        innerObject.m_time = m_time;//millisecond
 
 
         var search_index = s_index(sortedArray, token);
@@ -756,6 +842,8 @@ app.post('/message/list', async (req, res)=>{
         }
     }
   }
+  sortByRecentDate(sortedArray);
+
   res.send(sortedArray);
 });
 // 아래는 특정한 리스트를 받아 채팅하는 공간
@@ -950,7 +1038,7 @@ app.post('/lounge', async (req, res)=>{
       responseObject.response_data_point = _result[0].m_point;
       // responseObject.response_data_notice = NoticeArray;
       responseObject.response_data_notice = eliminateTargetInArray(device_id, NoticeArray);
-      responseObject.response_data_notice_my_list =searchMyList(NoticeArray, device_id);
+      responseObject.response_data_notice_my_list =searchMyNoticeList(NoticeArray, device_id);
 
       res.send(responseObject);
       break;
@@ -1114,15 +1202,15 @@ app.post('/online', async (req, res)=>{
   responseObject.response_type = request_type;
   switch (request_type) {
     case "online":
-      if(OnLineArray.indexOf(device_id) == -1){
-        OnLineArray.push(device_id);
-      }
+      // if(OnLineArray.indexOf(device_id) == -1){
+      //   OnLineArray.push(device_id);
+      // }
       break;
     case "offline":
-      var searchIndex = OnLineArray.indexOf(device_id);
-      if(searchIndex != -1){
-        OnLineArray.splice(searchIndex, 1);
-      }
+      // var searchIndex = OnLineArray.indexOf(device_id);
+      // if(searchIndex != -1){
+      //   OnLineArray.splice(searchIndex, 1);
+      // }
       break;
     default:
 
@@ -1166,6 +1254,21 @@ app.get('/get2', async (req, res)=>{
   });
 });
 
+function sortByRecentDate(array){
+  for(var i = 0; i < array.length-1; i++){
+    var left_time = array[i].last_message_info.m_time;
+    for(var j = i+1; j < array.length; j++){
+      var right_time = array[j].last_message_info.m_time;
+      if(left_time > right_time){
+          var a = array[i];
+          var b = array[j];
+          array[i] = b;
+          array[j] = a;
+      }
+    }
+  }
+  return array;
+}
 function sendNotification(toToken, title, message, messageToken){
   message = new targetMessage(toToken, title, message, messageToken);
   // res.send(message.targetMessage());
@@ -1177,7 +1280,7 @@ function sendNotification(toToken, title, message, messageToken){
       }
   });
 }
-function searchMyList(array, device_id){
+function searchMyNoticeList(array, device_id){
   var return_array =  [];
   for(var i = 0 ; i < array.length; i ++ ){
     if(array[i].senderID == device_id){
@@ -1214,8 +1317,16 @@ function createRandomArray(array){
           i++;
         }
     }
+    var object = new Object();
+    object.type = "announcement";
+    object.content = "베타 테스트 중 입니다. 더 깨끗하고 편리한 서비스로 찾아뵙 겠습니다.";
+    return_array.push(object);
     return return_array;
   }else{
+    var object = new Object();
+    object.type = "announcement";
+    object.content = "베타 테스트 중 입니다. 더 깨끗하고 편리한 서비스로 찾아뵙 겠습니다.";
+    array.push(object);
     return array;
   }
 
