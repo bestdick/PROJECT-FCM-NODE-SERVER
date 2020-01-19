@@ -16,6 +16,7 @@ var FCM = require('fcm-node');//fcm module
 var serverKey = 'AAAA6rfi34s:APA91bF66oVcBbk1vyDk8uooTmjB8EIkSGNRCHMa1trleQm7cB_uOfv45bl4DhudLYCm3VgchjF1sVe1CYjFY9dr-oqtLRKQpRd5VmGpsF5Newz87HedNBLib6IzZIlt_eEEjQIHJTRu'; //put your server key here
 var fcm = new FCM(serverKey);
 var targetMessage = require('../message_template/message.js');
+var fm_module = require('../function/fake_member_module.js')();
 
 var mysql_dbc = require('../database/db_con.js')();
 var connection = mysql_dbc.init();
@@ -47,7 +48,7 @@ setInterval(function(){
     if(type != "announcement"){
       var time = NoticeArray[i].time;
       var timeNow = Date.now();
-        if(time+(3600*1000) < timeNow){
+        if(time+(5*3600*1000) < timeNow){
           NoticeArray.splice(i, 1);
         }
     }
@@ -170,87 +171,150 @@ for(var i = 0 ; i < result.length; i++){
 }, 600000);
 
 
+app.get('/test2', async (req, res)=>{
+  var device_id = "daAeSYezYro";
+  var stmt = "SELECT * FROM random_message WHERE r_sender_id = ? OR r_receiver_id = ? ORDER BY r_date ASC";
+  var array = [device_id, device_id];
+  var result = await asyncQuery(stmt, array);
+
+var k = 0;
+  var sortedArray = new Array();
+  for(var i= 0 ; i<result.length; i++){
+
+      var token = result[i].r_token;
+
+
+      var _stmt = "SELECT * FROM message_status WHERE token = ? AND user_id = ?";
+      var _sqlArray = [token, device_id];
+      var _result = await asyncQuery(_stmt, _sqlArray);
+
+      if(_result.length != 0){
+        //해당 사용자의 상태가 0 이 아니다 즉 1개이면 그 사람이 삭제를 했기 때문에 더이상 보여줄 필요가 없으므로
+        //해당 내용을 return 할 필요가 없다.
+      }else{
+
+      var sender = result[i].r_sender_id;
+      var receiver = result[i].r_receiver_id;
+      //누가 sender 이고 누가 receiver 인지 모르므로 대조를 해봐야한다.
+      var notMe = (device_id == sender) ? receiver : sender;
+      var _stmt = "SELECT * FROM message_status WHERE token = ? AND user_id = ?";
+      var _sqlArray = [token, notMe];
+      var _result = await asyncQuery(_stmt, _sqlArray);
+      var messageStatus = "live";
+      if(_result.length != 0 ){
+        messageStatus = "dead";
+      }
+        var message = result[i].r_message;
+        var instant_sender = result[i].r_instant_sender;
+        var isRead = result[i].r_receiver_read;
+        var r_time =  dateFormat(new Date(parseInt(result[i].r_date)), "yyyy년 mm월 dd일 h시 MM분");
+        var m_time =  result[i].r_date;
+
+        var info_stmt = "";
+        var info_array = new Array();
+        var info_result= new Array();
+        var senderInfo = new Object();
+        var receiverInfo = new Object();
+        console.log("splice ::", token.split("-")[0]);
+        if(token.split("-")[0] == "fake"){
+            info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
+            info_array = [receiver];
+            receiverInfo = await asyncQuery(info_stmt, info_array)[0];
+
+            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
+            info_array = [sender];
+            senderInfo = await asyncQuery(info_stmt, info_array)[0];
+
+        }else{
+           info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
+           info_array = [sender, receiver];
+           info_result = await asyncQuery(info_stmt, info_array);
+
+           senderInfo = (info_result[0].m_f_id == sender) ? info_result[0] : info_result[1];
+           receiverInfo = (info_result[0].m_f_id == receiver) ? info_result[0] : info_result[1];
+        }
+        // var senderInfo = (info_result[0].m_f_id == sender) ? info_result[0] : info_result[1];
+        // var receiverInfo = (info_result[0].m_f_id == receiver) ? info_result[0] : info_result[1];
+
+        var innerObject = new Object();
+        innerObject.sender = sender;
+        innerObject.sender_info = senderInfo;
+        innerObject.receiver = receiver;
+        innerObject.receiver_info = receiverInfo;
+        innerObject.instant_sender = instant_sender;
+        innerObject.isRead = isRead;
+        innerObject.message = message;
+        innerObject.time = r_time;//real time
+        innerObject.m_time = m_time;//millisecond
+
+
+
+        var search_index = s_index(sortedArray, token);
+        if(search_index == -1){
+          var object = new Object();
+
+
+          object.token = token;
+          object.messageStatus = messageStatus;
+          object.initial_s_info = senderInfo;
+          object.initial_r_info =  receiverInfo;
+          object.last_message_info = {"message": message, "time": r_time, "m_time": m_time};
+          object.items = [innerObject];
+          sortedArray.push(object);
+        }else{
+          sortedArray[search_index].items.push(innerObject);
+          sortedArray[search_index].last_message_info = {"message": message, "time": r_time, "m_time": m_time};
+        }
+    }
+  }
+  sortByRecentDate(sortedArray);
+
+  res.send(sortedArray);
+});
 
 app.get('/test', async (req,res)=>{
-  // var device_id = "eSOv9NANXq8";
-  //
-  // var pstmt = "SELECT f.F_Token, f.F_date, m.m_location, m.m_age, m.m_gender, m.m_gps_la, m.m_gps_lo, m.m_point FROM firebasedevicetokenid f , member_additional_info m "+
-  // "WHERE m.m_f_id = ? AND f.F_id = ? GROUP BY f.F_id";
-  // var sqlArray = [device_id, device_id];
-  // var result = await asyncQuery(pstmt, sqlArray);
-  //
-  // console.log("result 1 :: ", result);
-  // var thisLong = result[0].m_gps_lo;
-  // var thisLat = result[0].m_gps_la;
-  // console.log("lng / lat :: ", thisLong + "/ " +thisLat);
-  // // var _pstmt = "SELECT "+
-  // // "m_f_id, ("+
-  // //   "6371 * acos ("+ // 6371 kilo ///   3959 mile
-  // //     "cos ( radians(?) )"+
-  // //     "* cos( radians( m_gps_la ) )"+
-  // //     "* cos( radians( m_gps_lo ) - radians(?) )"+
-  // //     "+ sin ( radians(?) )"+
-  // //     "* sin( radians( m_gps_la ) )"+
-  // //     ")"+
-  // //   ") AS distance "+
-  // // "FROM member_additional_info "+
-  // // "HAVING distance < 300 "+
-  // // "WHERE m_f_id <> ? AND "
-  // // "ORDER BY distance "+
-  // // "LIMIT 0 , 20";
-  // var _pstmt = "SELECT DISTINCT "+
-  // "m.m_f_id, ("+
-  //   "6371 * acos ("+ // 6371 kilo ///   3959 mile
-  //     "cos ( radians(?) )"+
-  //     "* cos( radians( m.m_gps_la ) )"+
-  //     "* cos( radians( m.m_gps_lo ) - radians(?) )"+
-  //     "+ sin ( radians(?) )"+
-  //     "* sin( radians( m.m_gps_la ) )"+
-  //     ")"+
-  //   ") AS distance "+
-  // "FROM member_additional_info m, firebasedevicetokenid f "+
-  // "WHERE m.m_f_id = f.F_id AND m.m_f_id <> ? AND f.F_status = ? "+
-  // "HAVING distance < 300 "+
-  // "ORDER BY distance "+
-  // "LIMIT 0 , 20";
-  //
-  // var _sqlArray = [thisLat, thisLong, thisLat, device_id, 1];
-  // var _result = await asyncQuery(_pstmt, _sqlArray);
-  // console.log(_result);
-  // res.send(_result);
+  var device_id = "daAeSYezYro";
 
-  var timeNow = Date.now();
-  var _timeLimit = 3*24*60*60*1000;
-  var _3days = timeNow - _timeLimit;
-  var del_pstmt = "SELECT DISTINCT(r_token) FROM random_message WHERE CAST(r_date AS SIGNED) < ? LIMIT 1000";
-  var sqlArray = [_3days];
-  var result = await asyncQuery(del_pstmt, sqlArray);
-  if(result.length>0){
-  for(var i = 0 ; i < result.length; i++){
-    var token = result[i].r_token;
-    var _del_pstmt = "SELECT * FROM random_message WHERE r_token = ? ORDER BY r_id DESC LIMIT 1";
-    var _sqlArray = [token];
-    var _result = await asyncQuery(_del_pstmt, _sqlArray);
-    if(_result.length > 0 ){
-    var thisToken = _result[0].r_token;
-    var latest_date = _result[0].r_date;
-    if(latest_date < _3days){
-      console.log(thisToken+":: Delete this Token");
-      var _d_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
-      var _d_sqlArray = [thisToken];
-      connection.query(_d_pstmt, _d_sqlArray, async function(err, result){
-        if(err){
-          console.log("-- 3일 이상된 메시지 지우기 실패 --");
-        }else{
-          console.log("-- 3일 이상된 메시지 지우기 성공 --");
-        }
-      });
-    }
-    }
-  }
+
+  var age_type = 1;
+  var location_type =1;
+  var gender_type = 1;
+  var sql = "SELECT f.F_Token, f.F_date, m.m_location, m.m_age, m.m_gender, m.m_point FROM firebasedevicetokenid f , member_additional_info m WHERE m.m_f_id = ? AND f.F_id = ? GROUP BY f.F_id";
+  var array = [device_id, device_id];
+  var result = await asyncQuery(sql, array);
+  var u_token =  result[0].F_Token;
+  var u_last_conn_date =  result[0].F_date;
+  var u_location =  result[0].m_location;
+  var u_age =  result[0].m_age;
+  var u_gender =  (result[0].m_gender == "m") ? "f" : "m";
+  var u_point = result[0].m_point;
+  var searchResult = search(age_type, location_type, gender_type, u_age, u_location, u_gender, device_id);
+  var result = await asyncQuery(searchResult[0], searchResult[1]);
+  console.log(" ---------- SEARCH RESULT :: -----------");
+  console.log("Count Result : ", result.length);
+
+  if(result.length == 0 ){
+    fm_module.create_fake_member(connection, age_type, location_type, gender_type,
+    u_age, u_location, u_gender, function(data){
+      var json = data;
+      var response = json.response;
+      if(response=="success"){
+        var receiver_id = json.id;
+        var token = "fake-"+device_id+"-"+receiver_id;
+        var r_sender_id = device_id;
+        var r_receiver_id = receiver_id;
+        var message = "fuck";
+        fm_module.save_message_toward_fake(connection, token, r_sender_id, r_receiver_id, message, function(data){
+            console.log(data);
+            res.send(data);
+        });
+      }else{
+        res.send("fail");
+      }
+    });
 
   }
-res.send(_result);
+
 
 });
 
@@ -529,61 +593,92 @@ app.post('/message/send', async (req, res)=>{
 
       if(result.length == 0 ){
         //찾는 상대방이 없을때 .....
-        var _searchSQL = "SELECT f.F_id, f.F_Token FROM member_additional_info m, firebasedevicetokenid f "+
-        " WHERE f.F_id = m.m_f_id AND  m.m_gender = ? AND CAST(f.F_date as UNSIGNED) >= ? AND f.F_id <> ? "+
-        "AND f.F_status =1 AND m.m_f_id <> ?";
-        var _searchSQLArray = [u_gender,  (Date.now()-604800000), device_id, device_id];
-        var _result = await asyncQuery(_searchSQL, _searchSQLArray);
 
-        var randomNumber = getRandomIntInclusive(0, (_result.length-1));
-        var selected =  _result[randomNumber];
-        var selected_id =  selected.F_id;
-        var selected_token =  selected.F_Token;
-
-        var messageToken = device_id+"-"+selected_id+"-"+uuidv4();
-        message = new targetMessage(selected_token, "두근 두근 랜덤채팅", message_content, "initial", messageToken);
-
-        fcm.send(message.targetMessage(), async function(err, response){
-            if (err) {
-                console.log("보낼 대상자의 아이디 " , selected_id);
-                console.log("Something has gone wrong! ::", err);
-
-                // 해당 토큰의 사용자의 status 상태를 -1 로 바꾸어 다시는 찾지 않게 한다?
-                var pstmt = "UPDATE firebasedevicetokenid SET F_status = -1 WHERE F_Token = ? ";
-                var sqlArray = [selected_token];
-                var result = await asyncQuery(pstmt, sqlArray);
-                console.log(result);
+        fm_module.create_fake_member(connection, age_type, location_type, gender_type,
+        u_age, u_location, u_gender, function(data){
+          var json = data;
+          var response = json.response;
+          if(response=="success"){
+            var receiver_id = json.id;
+            var token = "fake-"+device_id+"-"+receiver_id;
+            var r_sender_id = device_id;
+            var r_receiver_id = receiver_id;
+            var message = message_content;
+            fm_module.save_message_toward_fake(connection, token, r_sender_id, r_receiver_id, message, function(data){
+              if(data == "success"){
+                resultObject.response_data = "success";
+                res.send(resultObject);
+              }else{
                 resultObject.response_data = "fail";
                 res.send(resultObject);
+              }
 
-            } else {
-                console.log("Successfully sent with response: ", response);
-
-                var stmt = "INSERT INTO random_message (r_token, r_sender_id, r_receiver_id, r_message, r_instant_sender, r_receiver_read, r_date) VALUES (?, ?, ?, ?, ?, ?, ? )";
-                connection.query(stmt, [messageToken, device_id, selected_id, message_content, device_id, -1, Date.now()],  async function(err, result){
-                  if(err){
-                    console.log("upload_fail::", err);
-                    resultObject.response_data = "fail";
-                    res.send(resultObject);
-                  }else{
-                    console.log("random message insert upload_success");
-                    resultObject.response_data = "success_random";
-                    res.send(resultObject);
-                    // var _pstmt = "UPDATE member_additional_info SET m_point = m_point+? WHERE m_f_id= ?";
-                    // var _sqlArray = [_point, device_id];
-                    // connection.query(_pstmt, _sqlArray, async function(err, result){
-                    //   if(err){
-                    //     resultObject.response_data = "fail";
-                    //     res.send(resultObject);
-                    //   }else{
-                    //     resultObject.response_data = "success_random";
-                    //     res.send(resultObject);
-                    //   }
-                    // });
-                  }
-                });
-            }
+            });
+          }else{
+            resultObject.response_data = "fail";
+            res.send(resultObject);
+          }
         });
+
+
+
+        // var _searchSQL = "SELECT f.F_id, f.F_Token FROM member_additional_info m, firebasedevicetokenid f "+
+        // " WHERE f.F_id = m.m_f_id AND  m.m_gender = ? AND CAST(f.F_date as UNSIGNED) >= ? AND f.F_id <> ? "+
+        // "AND f.F_status =1 AND m.m_f_id <> ?";
+        // var _searchSQLArray = [u_gender,  (Date.now()-604800000), device_id, device_id];
+        // var _result = await asyncQuery(_searchSQL, _searchSQLArray);
+        //
+        // var randomNumber = getRandomIntInclusive(0, (_result.length-1));
+        // var selected =  _result[randomNumber];
+        // var selected_id =  selected.F_id;
+        // var selected_token =  selected.F_Token;
+        //
+        // var messageToken = device_id+"-"+selected_id+"-"+uuidv4();
+        // message = new targetMessage(selected_token, "두근 두근 랜덤채팅", message_content, "initial", messageToken);
+        //
+        // fcm.send(message.targetMessage(), async function(err, response){
+        //     if (err) {
+        //         console.log("보낼 대상자의 아이디 " , selected_id);
+        //         console.log("Something has gone wrong! ::", err);
+        //
+        //         // 해당 토큰의 사용자의 status 상태를 -1 로 바꾸어 다시는 찾지 않게 한다?
+        //         var pstmt = "UPDATE firebasedevicetokenid SET F_status = -1 WHERE F_Token = ? ";
+        //         var sqlArray = [selected_token];
+        //         var result = await asyncQuery(pstmt, sqlArray);
+        //         console.log(result);
+        //         resultObject.response_data = "fail";
+        //         res.send(resultObject);
+        //
+        //     } else {
+        //         console.log("Successfully sent with response: ", response);
+        //
+        //         var stmt = "INSERT INTO random_message (r_token, r_sender_id, r_receiver_id, r_message, r_instant_sender, r_receiver_read, r_date) VALUES (?, ?, ?, ?, ?, ?, ? )";
+        //         connection.query(stmt, [messageToken, device_id, selected_id, message_content, device_id, -1, Date.now()],  async function(err, result){
+        //           if(err){
+        //             console.log("upload_fail::", err);
+        //             resultObject.response_data = "fail";
+        //             res.send(resultObject);
+        //           }else{
+        //             console.log("random message insert upload_success");
+        //             resultObject.response_data = "success_random";
+        //             res.send(resultObject);
+        //             // var _pstmt = "UPDATE member_additional_info SET m_point = m_point+? WHERE m_f_id= ?";
+        //             // var _sqlArray = [_point, device_id];
+        //             // connection.query(_pstmt, _sqlArray, async function(err, result){
+        //             //   if(err){
+        //             //     resultObject.response_data = "fail";
+        //             //     res.send(resultObject);
+        //             //   }else{
+        //             //     resultObject.response_data = "success_random";
+        //             //     res.send(resultObject);
+        //             //   }
+        //             // });
+        //           }
+        //         });
+        //     }
+        // });
+
+
         // resultObject.response_data = "fail";
         // res.send(resultObject);
       }else{
@@ -807,14 +902,31 @@ app.post('/message/list', async (req, res)=>{
         var r_time =  dateFormat(new Date(parseInt(result[i].r_date)), "yyyy년 mm월 dd일 h시 MM분");
         var m_time =  result[i].r_date;
 
-        var info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
-        var info_array = [sender, receiver];
-        var info_result = await asyncQuery(info_stmt, info_array);
+        var info_stmt = "";
+        var info_array = new Array();
+        var info_result= new Array();
+        var senderInfo = new Object();
+        var receiverInfo = new Object();
+        console.log("splice ::", token.split("-")[0]);
+        if(token.split("-")[0] == "fake"){
+            info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
+            info_array = [receiver];
+            receiverInfo = await asyncQuery(info_stmt, info_array)[0];
 
-        var senderInfo = (info_result[0].m_f_id == sender) ? info_result[0] : info_result[1];
-        var receiverInfo = (info_result[0].m_f_id == receiver) ? info_result[0] : info_result[1];
+            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
+            info_array = [sender];
+            senderInfo = await asyncQuery(info_stmt, info_array)[0];
+
+        }else{
+           info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
+           info_array = [sender, receiver];
+           info_result = await asyncQuery(info_stmt, info_array);
+
+           senderInfo = (info_result[0].m_f_id == sender) ? info_result[0] : info_result[1];
+           receiverInfo = (info_result[0].m_f_id == receiver) ? info_result[0] : info_result[1];
+        }
+
         var innerObject = new Object();
-
         innerObject.sender = sender;
         innerObject.sender_info = senderInfo;
         innerObject.receiver = receiver;
