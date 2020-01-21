@@ -3,19 +3,204 @@
   <head>
     <meta charset="utf-8">
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-    <title></title>
+    <title>ADMIN MAIN</title>
   </head>
+
+  <script>
+    $(document).ready(function(){
+          $.ajax({
+            url: "http://localhost:3000/admin_page/admin_only/ajax", // 클라이언트가 요청을 보낼 서버의 URL 주소
+            type: "post",
+            data: { type: "main"},
+            dataType: "json"                         // 서버에서 보내줄 데이터의 타입
+          })
+          // HTTP 요청이 성공하면 요청한 데이터가 done() 메소드로 전달됨.
+          .done(function(json) {
+            console.log(json.data);
+            var data = json.data;
+            for(var i = 0 ; i < data.length; i++){
+              var pk = data[i].r_id;
+              var r_token = data[i].r_token;
+              var r_sender_id = data[i].r_sender_id;
+              var r_receiver_id = data[i].r_receiver_id;
+              var r_message = data[i].r_message;
+              var r_instant_sender = data[i].r_instant_sender;
+              var r_receiver_read = data[i].r_receiver_read;
+              var r_date = data[i].r_date;
+
+              var str = "<tr>";
+              str+= "<td id="+r_token+">"+r_token+"</td>";
+              str+="</tr>";
+
+              $(".fake_list_table").append(str);
+            }
+
+            $('.fake_list_table tr').click(function() {
+              var val = $(this).find("td").attr("id");
+
+                        $.ajax({
+                        url: "http://localhost:3000/admin_page/admin_only/ajax", // 클라이언트가 요청을 보낼 서버의 URL 주소
+                        type: "post",
+                        data: { type: "selected_message", data : val},
+                        dataType: "json"                         // 서버에서 보내줄 데이터의 타입
+                        })
+                        // HTTP 요청이 성공하면 요청한 데이터가 done() 메소드로 전달됨.
+                        .done(function(data) {
+                          $('#message_area_td').html("");
+                          var _json = data.data;
+                          console.log(_json);
+                          var pk = _json[0].id;
+                          var r_token = _json[0].token;
+                          var r_sender_id = _json[0].sender;
+                          var r_sender_token = _json[0].senderInfo.F_Token;
+                          var r_sender_age = _json[0].senderInfo.m_age;
+                          var r_sender_location = _json[0].senderInfo.m_location;
+                          var r_sender_gender = _json[0].senderInfo.m_gender;
+
+                          var r_receiver_id = _json[0].receiver;
+                          var r_receiver_age = _json[0].receiverInfo.t_age;
+                          var r_receiver_gender = _json[0].receiverInfo.t_gender;
+
+
+                          var items = _json[0].items;
+                          for(var j = 0 ; j < items.length; j++){
+                            var message = items[j].message;
+                            var instant_sender = items[j].instant_sender;
+                            var receiver_read = items[j].receiver_read;
+                            var time = items[j].time;
+
+                            if(r_sender_id == instant_sender){
+                              var str = "<p>사용자("+r_sender_age+"/"+r_sender_location+"/"+r_sender_gender+")::<span style='color:red'> "+message+"</span></p>";
+                              $('#message_area_td').append(str);
+                            }else{
+                              var str = "<p>운영자("+r_receiver_age+"/"+r_receiver_gender+")::"+message+"</p>";
+                              $('#message_area_td').append(str);
+                            }
+                          }
+                          var writeArea = "<input type=text id=message_text>"+
+                          "<input type=button value=보내기 id=message_send_button>"+
+                          "<input type=button value=신고 id=report_button>";
+                          $('#message_area_td').append(writeArea);
+                          //아래는 버튼 액션
+                          $('#message_send_button').click(function(){
+                            var object = new Object();
+                            object.token = r_token;
+                            object.sender = r_sender_id;
+                            object.senderToken = r_sender_token;
+                            object.receiver = r_receiver_id;
+                            object.message= $('#message_text').val();
+                            object.instant_sender = r_receiver_id;
+                            object.read = -1;
+                            object.time = Date.now();
+                            SendAction(object);
+                          });
+
+
+
+                        })
+                        // HTTP 요청이 실패하면 오류와 상태에 관한 정보가 fail() 메소드로 전달됨.
+                        .fail(function(xhr, status, errorThrown) {
+                          console.log("꺼져라");
+                        })
+                        // HTTP 요청이 성공하거나 실패하는 것에 상관없이 언제나 always() 메소드가 실행됨.
+                        .always(function(xhr, status) {
+                          console.log("요청 완료")
+                        });
+
+            });
+          })
+          // HTTP 요청이 실패하면 오류와 상태에 관한 정보가 fail() 메소드로 전달됨.
+          .fail(function(xhr, status, errorThrown) {
+            console.log("꺼져라");
+          })
+          // HTTP 요청이 성공하거나 실패하는 것에 상관없이 언제나 always() 메소드가 실행됨.
+          .always(function(xhr, status) {
+
+            console.log("요청 완료")
+          });
+
+          function ReportAction(){
+            $.ajax({
+            url: "http://localhost:3000/admin_page/admin_only/ajax", // 클라이언트가 요청을 보낼 서버의 URL 주소
+            type: "post",
+            data: { type: "selected_message", data : val},
+            dataType: "json"                         // 서버에서 보내줄 데이터의 타입
+            })
+            .done(function(data) {
+
+            })
+            .fail(function(xhr, status, errorThrown) {
+              console.log("꺼져라");
+            })
+            .always(function(xhr, status) {
+              console.log("요청 완료")
+            });
+          }
+          function SendAction(object){
+            $.ajax({
+            url: "http://localhost:3000/admin_page/admin_only/ajax", // 클라이언트가 요청을 보낼 서버의 URL 주소
+            type: "post",
+            data: { type: "send_message", data : object},
+            dataType: "json"                         // 서버에서 보내줄 데이터의 타입
+            })
+            .done(function(data) {
+              console.log(data);
+            })
+            .fail(function(xhr, status, errorThrown) {
+              console.log("SendAction :: 꺼져라", errorThrown);
+            })
+            .always(function(xhr, status) {
+              console.log("SendAction ::요청 완료")
+            });
+          }
+    });
+  </script>
+  <style>
+  .fake_list_table{
+    border-collapse: collapse;
+  }
+  .fake_list_table tr {
+    background-color: #eee;
+    border-top: 1px solid #fff;
+  }
+  .fake_list_table tr:hover {
+      background-color: #ccc;
+  }
+  .fake_list_table th {
+      background-color: #fff;
+  }
+  .fake_list_table th, .fake_list_table td {
+      padding: 3px 5px;
+  }
+  .fake_list_table td:hover {
+      cursor: pointer;
+  }
+  </style>
+
   <body>
-    <form class="" action="/admin" method="post">
-      <input type="hidden" name="type" value="admin_login">
-      <h3>ADMIN LOGIN</h3>
-      <p><span>
-        ID :
-      <input type="text" name="id" placeholder="write your id"></span></p>
-      <p><span>
-        PW :
-      <input type="password" name="pw" placeholder="write your pw"></span></p>
-      <input type="submit" name="" value="login">
-    </form>
+    <div class="menu">
+      <span>리스트</span>
+      <span>빈폴더</span>
+      <span>빈폴더</span>
+    </div>
+
+<h1>리스트</h1>
+    <div class="content">
+
+<table>
+  <tr>
+    <td>
+      <table class="fake_list_table">
+        <tr>
+          <th>token</th>
+        </tr>
+      </table>
+    </td>
+    <td id="message_area_td">
+      hello
+    </td>
+  </tr>
+</table>
+    </div>
   </body>
 </html>

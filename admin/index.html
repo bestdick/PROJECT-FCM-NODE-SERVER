@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+    <title></title>
+  </head>
+
+  <script>
+    $(document).ready(function(){
+      $('#submitBtn').click(function(){
+        var input_id = $('#id').val();
+        var input_pw = $('#pw').val();
+              $.ajax({
+                url: "http://localhost:3000/admin_page/admin_only/ajax", // 클라이언트가 요청을 보낼 서버의 URL 주소
+                type: "post",
+                data: { type: "login" , id : input_id, pw: input_pw},                // HTTP 요청과 함께 서버로 보낼 데이터                type: "post",                             // HTTP 요청 방식(GET, POST)
+                dataType: "json"                         // 서버에서 보내줄 데이터의 타입
+              })
+      // HTTP 요청이 성공하면 요청한 데이터가 done() 메소드로 전달됨.
+            .done(function(json) {
+              if(json.access == "access_granted"){
+                location.href = "http://localhost:3000/admin_page/admin_only?address=main";
+              }else{
+                console.log("꺼지라");
+              }
+            })
+      // HTTP 요청이 실패하면 오류와 상태에 관한 정보가 fail() 메소드로 전달됨.
+          .fail(function(xhr, status, errorThrown) {
+            console.log("꺼져라");
+          })
+      // HTTP 요청이 성공하거나 실패하는 것에 상관없이 언제나 always() 메소드가 실행됨.
+        .always(function(xhr, status) {
+
+          console.log("요청 완료")
+        });
+      });
+    });
+  </script>
+  <body>
+      <h3>ADMIN LOGIN</h3>
+      <p><span>
+        ID :
+      <input type="text" name="id" id="id" placeholder="write your id"></span></p>
+      <p><span>
+        PW :
+      <input type="password" name="pw" id="pw" placeholder="write your pw"></span></p>
+      <input type="submit" id="submitBtn" name="" value="login">
+  </body>
+</html>

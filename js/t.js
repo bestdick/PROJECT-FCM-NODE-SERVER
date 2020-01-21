@@ -29,6 +29,8 @@ var CheckAdditionalExist = require('../function/CheckAdditionalExist.js');
 const uuidv4 = require('uuid/v4');
 var dateFormat = require('dateformat');
 
+var admin = require('../function/admin_module.js')(connection);
+
 var OnLineArray = new Array();
 setInterval(function(){
   console.log("online total : ", OnLineArray.length);
@@ -106,6 +108,7 @@ setInterval(async function(){
   var _g_result = await asyncQuery(_g_pstmt, []);
   for(var i = 0 ; i < _g_result.length; i++){
     var token = _g_result[i].token;
+
     var __g_pstmt = "SELECT r_date FROM random_message WHERE r_token = ? ORDER BY r_id LIMIT 1";
     var __g_sqlArray = [token];
     var __g_result = await asyncQuery(__g_pstmt, __g_sqlArray);
@@ -113,6 +116,19 @@ setInterval(async function(){
       console.log("1보다 크다",__g_result);
       var latest_time = __g_result[0].r_date;
       if(_24hour > latest_time){
+        //fake message info;
+        if(token.split("-")[0] == "fake"){
+          var fake_receiver_id =  _g_result[i].r_receiver_id;
+          var fake_pstmt = "DELETE FROM temp_search_fail WHERE t_id = ?";
+          var fake_sqlArray = [fake_receiver_id];
+          connection.query(fake_pstmt, fake_sqlArray, async function(err,result){
+            if(err){
+              console.log("fake 삭제 실패 1");
+            }else{
+              console.log("fake 삭제 성공 1");
+            }
+          });
+        }
         console.log("삭제.....");
         var ___g_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
         var ___g_sqlArray = [token];
@@ -152,6 +168,20 @@ for(var i = 0 ; i < result.length; i++){
   var thisToken = _result[0].r_token;
   var latest_date = _result[0].r_date;
   if(latest_date < _3days){
+
+    if(thisToken.split("-")[0] == "fake"){
+      var fake_receiver_id =  _result[i].r_receiver_id;
+      var fake_pstmt = "DELETE FROM temp_search_fail WHERE t_id = ?";
+      var fake_sqlArray = [fake_receiver_id];
+      connection.query(fake_pstmt, fake_sqlArray, async function(err,result){
+        if(err){
+          console.log("3일 fake 삭제 실패 1");
+        }else{
+          console.log("3일 fake 삭제 성공 1");
+        }
+      });
+    }
+
     console.log(thisToken+":: Delete this Token");
     var _d_pstmt = "DELETE FROM random_message WHERE r_token = ? ";
     var _d_sqlArray = [thisToken];
@@ -213,17 +243,34 @@ var k = 0;
         var info_stmt = "";
         var info_array = new Array();
         var info_result= new Array();
-        var senderInfo = new Object();
-        var receiverInfo = new Object();
+        var senderInfo = null;
+        var receiverInfo = null;
         console.log("splice ::", token.split("-")[0]);
         if(token.split("-")[0] == "fake"){
-            info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
-            info_array = [receiver];
-            receiverInfo = await asyncQuery(info_stmt, info_array)[0];
+            var r_info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
+            var r_info_array = [receiver];
+            var r_info_result = await asyncQuery(r_info_stmt, r_info_array);
+            var temp_object = new Object();
+            temp_object.m_f_id = r_info_result[0].t_id;
+            temp_object.m_location = r_info_result[0].t_location;
+            temp_object.m_age = r_info_result[0].t_age;
+            temp_object.m_gender = r_info_result[0].t_gender;
+            temp_object.m_register_date = r_info_result[0].t_time;
+            temp_object.m_point = 0;
+            temp_object.m_gps_la = null;
+            temp_object.m_gps_lo = null;
+            // receiverInfo = r_info_result[0];
+            receiverInfo = temp_object;
 
-            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
-            info_array = [sender];
-            senderInfo = await asyncQuery(info_stmt, info_array)[0];
+            console.log("re ::", receiver);
+            console.log("RECEIVER INFO ::", receiverInfo);
+            var s_info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
+            var s_info_array = [sender];
+            var s_info_result = await asyncQuery(s_info_stmt, s_info_array);
+            senderInfo = s_info_result[0];
+            console.log("send ::", sender);
+            console.log("SENDER INFO ::", senderInfo);
+
 
         }else{
            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
@@ -698,7 +745,7 @@ app.post('/message/send', async (req, res)=>{
           res.send(resultObject);
         }else{
           var messageToken = device_id+"-"+selected_id+"-"+uuidv4();
-          message = new targetMessage(selected_token, "두근 두근 랜덤채팅", message_content, "initial", messageToken);
+          message = new targetMessage(selected_token, "심친", message_content, "initial", messageToken);
           fcm.send(message.targetMessage(), async function(err, response){
               if (err) {
                   console.log("보낼 대상자의 아이디 " , selected_id);
@@ -761,7 +808,7 @@ app.post('/message/send', async (req, res)=>{
       var sqlArray = [messageToken, r_sender_id, r_receiver_id, message, device_id, -1, time];
       // var result = await asyncQuery(pstmt, sqlArray);
 
-      message = new targetMessage(toSenderToken, "두근두근 랜덤채팅", message, "continuous", messageToken);
+      message = new targetMessage(toSenderToken, "심친", message, "continuous", messageToken);
       fcm.send(message.targetMessage(), function(err, response){
           if (err) {
               console.log("Something has gone wrong! ::", err);
@@ -833,7 +880,7 @@ app.post('/message/send', async (req, res)=>{
                       res.send(resultObject);
                     }else{
 
-                      message = new targetMessage(sender_token, "두근두근 랜덤채팅", myContent, "continuous", messageToken);
+                      message = new targetMessage(sender_token, "심친", myContent, "continuous", messageToken);
                       fcm.send(message.targetMessage(), function(err, response){
                           if (err) {
                               console.log("Something has gone wrong! ::", err);
@@ -905,17 +952,32 @@ app.post('/message/list', async (req, res)=>{
         var info_stmt = "";
         var info_array = new Array();
         var info_result= new Array();
-        var senderInfo = new Object();
-        var receiverInfo = new Object();
-        console.log("splice ::", token.split("-")[0]);
+        var senderInfo = null;
+        var receiverInfo = null;
+        // console.log("splice ::", token.split("-")[0]);
         if(token.split("-")[0] == "fake"){
-            info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
-            info_array = [receiver];
-            receiverInfo = await asyncQuery(info_stmt, info_array)[0];
+          // t_id as m_f_id, t_location as m_location, t_age as m_age, t_gender as m_gender, t_time as m_register_date,
+          var r_info_stmt = "SELECT * FROM temp_search_fail WHERE t_id = ?";
+          var r_info_array = [receiver];
+          var r_info_result = await asyncQuery(r_info_stmt, r_info_array);
 
-            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
-            info_array = [sender];
-            senderInfo = await asyncQuery(info_stmt, info_array)[0];
+          var temp_object = new Object();
+          temp_object.m_f_id = r_info_result[0].t_id;
+          temp_object.m_location = r_info_result[0].t_location;
+          temp_object.m_age = r_info_result[0].t_age;
+          temp_object.m_gender = r_info_result[0].t_gender;
+          temp_object.m_register_date = r_info_result[0].t_time;
+          temp_object.m_point = 0;
+          temp_object.m_gps_la = null;
+          temp_object.m_gps_lo = null;
+          // receiverInfo = r_info_result[0];
+          receiverInfo = temp_object;
+
+          var s_info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ?";
+          var s_info_array = [sender];
+          var s_info_result = await asyncQuery(s_info_stmt, s_info_array);
+          senderInfo = s_info_result[0];
+
 
         }else{
            info_stmt = "SELECT * FROM member_additional_info WHERE m_f_id = ? OR m_f_id = ?";
@@ -1301,7 +1363,6 @@ app.post('/point/Reward', async (req, res)=>{
       res.send(responseObject);
   }
 });
-
 //Online checker
 app.post('/online', async (req, res)=>{
   var responseObject = new Object();
@@ -1535,81 +1596,156 @@ function asyncQuery(sql, array){
 console.log(" --------------- " + Date.now() + "----------------");
 console.log("Server running @ http://localhost:" + "3000");
 
-app.get('/admin_page/admin_only/', async (req, res)=>{
+app.get('/admin_page/admin_only', async (req, res)=>{
+  console.log("------------- admin login ---------------");
+  var address = req.query.address;
+  if(address == null ){
+    fs.readFile('../admin/index.html', function(err, data){
+      res.end(data, 'utf-8');
+    });
+  }else{
+
+    fs.readFile('../admin/main.html', function(err, data){
+      res.end(data, 'utf-8');
+    });
+  }
+
 
 });
+
 app.post('/admin_page/admin_only/ajax', async (req, res)=>{
+  var response = new Object();
+  var request_type =  req.body.type;
+  response.response_type = request_type;
+  switch (request_type) {
+    case "login":
+      var id = req.body.id;
+      var pw = req.body.pw;
+      var isLogin = admin.login(id, pw);
+      response.access = isLogin;
+      res.send(response);
+      break;
+      case "main":
+      admin.main(function(data){
+        response.data = data;
+        res.send(response);
+      });
+        break;
+      case "selected_message":
+      var token = req.body.data;
+      console.log("selected message token ::", token);
+      // var data = admin.seleted_message(token);
+      admin.selected_message(token , function(data){
+        response.data = data;
+        res.send(response);
+      });
+        break;
+      case "send_message":
 
+      var data = req.body.data;
+      var r_token  = data.token;
+      var r_sender = data.sender;
+      var r_sender_token = data.senderToken;
+      var r_receiver = data.receiver;
+      var r_message = data.message;
+      var r_instant_sender = data.instant_sender;
+      var r_read = data.read;
+      var r_date = data.time;
+
+      message = new targetMessage(r_sender_token, "심친", r_message, "continuous", r_token);
+      fcm.send(message.targetMessage(), function(err, _response){
+          if (err) {
+              console.log("Something has gone wrong! ::", err);
+              response.data = "fail";
+              res.send(response);
+          } else {
+              console.log("Successfully sent with response: ", response);
+              admin.send_message(data, function(data){
+                response.data = data;
+                res.send(response);
+              });
+          }
+      });
+
+      break;
+    default:
+
+  }
+
+  // var object = new Object();
+  // object.type= "fuck u";
+  //
+  // res.send(object);
 });
 
 
-
-
-
-
-
-var _app = _http.createServer(function(req, res){
-  var _url = req.url;
-  var queryData = url.parse(_url, true).query;
-  var pathname = url.parse(_url, true).pathname;
-  var title = queryData.id;
-  if(pathname === '/'){
-     if(queryData.id === undefined){
-       fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
-         var title = 'Welcome';
-         var description = 'Hello, Node.js';
-         var template = `
-         <!doctype html>
-         <html>
-         <head>
-           <title>WEB1 - ${title}</title>
-           <meta charset="utf-8">
-         </head>
-         <body>
-           <h1><a href="/">WEB</a></h1>
-           <ul>
-             <li><a href="/?id=HTML">HTML</a></li>
-             <li><a href="/?id=CSS">CSS</a></li>
-             <li><a href="/?id=JavaScript">JavaScript</a></li>
-           </ul>
-           <h2>${title}</h2>
-           <p>${description}</p>
-         </body>
-         </html>
-         `;
-         res.writeHead(200);
-         res.end(template);
-       });
-     } else {
-       fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
-         var title = queryData.id;
-         var description = queryData.id;
-         var template = `
-         <!doctype html>
-         <html>
-         <head>
-           <title>WEB1 - ${title}</title>
-           <meta charset="utf-8">
-         </head>
-         <body>
-           <h1><a href="/">WEB</a></h1>
-           <ul>
-             <li><a href="/?id=HTML">HTML</a></li>
-             <li><a href="/?id=CSS">CSS</a></li>
-             <li><a href="/?id=JavaScript">JavaScript</a></li>
-           </ul>
-           <h2>${title}</h2>
-           <p>${description}</p>
-         </body>
-         </html>
-         `;
-         res.writeHead(200);
-         res.end(template);
-       });
-     }
-   } else {
-     res.writeHead(404);
-     res.end('Not found');
-   }
-});
-_app.listen(3001);
+//
+//
+//
+//
+//
+// var _app = _http.createServer(function(req, res){
+//   var _url = req.url;
+//   var queryData = url.parse(_url, true).query;
+//   var pathname = url.parse(_url, true).pathname;
+//   var title = queryData.id;
+//   if(pathname === '/'){
+//      if(queryData.id === undefined){
+//        fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+//          var title = 'Welcome';
+//          var description = 'Hello, Node.js';
+//          var template = `
+//          <!doctype html>
+//          <html>
+//          <head>
+//            <title>WEB1 - ${title}</title>
+//            <meta charset="utf-8">
+//          </head>
+//          <body>
+//            <h1><a href="/">WEB</a></h1>
+//            <ul>
+//              <li><a href="/?id=HTML">HTML</a></li>
+//              <li><a href="/?id=CSS">CSS</a></li>
+//              <li><a href="/?id=JavaScript">JavaScript</a></li>
+//            </ul>
+//            <h2>${title}</h2>
+//            <p>${description}</p>
+//          </body>
+//          </html>
+//          `;
+//          res.writeHead(200);
+//          res.end(template);
+//        });
+//      } else {
+//        fs.readFile(`data/${queryData.id}`, 'utf8', function(err, description){
+//          var title = queryData.id;
+//          var description = queryData.id;
+//          var template = `
+//          <!doctype html>
+//          <html>
+//          <head>
+//            <title>WEB1 - ${title}</title>
+//            <meta charset="utf-8">
+//          </head>
+//          <body>
+//            <h1><a href="/">WEB</a></h1>
+//            <ul>
+//              <li><a href="/?id=HTML">HTML</a></li>
+//              <li><a href="/?id=CSS">CSS</a></li>
+//              <li><a href="/?id=JavaScript">JavaScript</a></li>
+//            </ul>
+//            <h2>${title}</h2>
+//            <p>${description}</p>
+//          </body>
+//          </html>
+//          `;
+//          res.writeHead(200);
+//          res.end(template);
+//        });
+//      }
+//    } else {
+//      res.writeHead(404);
+//      res.end('Not found');
+//    }
+// });
+// _app.listen(3001, "0,0,0,0");
